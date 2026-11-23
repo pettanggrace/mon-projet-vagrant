@@ -1,0 +1,17 @@
+name: todo
+
+services:
+  app:
+    image: ${TODO_IMAGE:-ghcr.io/pettanggrace/mon-projet-vagrant/todo-app:latest}
+    build: ./todo-list-app
+    container_name: todo-app
+    restart: unless-stopped
+    ports:
+      - "5111:3000"
+    environment:
+      SQLITE_DB_LOCATION: /etc/todos/todo.db
+    volumes:
+      - todo-data:/etc/todos
+
+volumes:
+  todo-data:
