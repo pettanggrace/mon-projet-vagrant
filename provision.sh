@@ -1,65 +1,38 @@
+
 #!/usr/bin/env bash
-# Provisioning de la VM todo-vm : Node.js 22, clone de l'app, service systemd, redirection 5111 -> 3000
+# Provisioning de todo-vm : installation de Docker Engine + plugin Docker Compose
+# Script idempotent : peut être relancé sans risque (vagrant provision).
 set -euo pipefail
 export DEBIAN_FRONTEND=noninteractive
 
-APP_DIR=/home/vagrant/todo-list-app
-APP_PORT=3000   # port d'écoute codé en dur dans src/index.js
-PUBLIC_PORT=5111
-DB_DIR=/var/lib/todo-app
-
-# 1. Dépendances système
+echo ">>> 1. Paquets de base"
 apt-get update -y
-apt-get install -y git curl build-essential python3 iptables-persistent
+apt-get install -y ca-certificates curl git jq
 
-# 2. Node.js 22 (si absent)
-if ! command -v node >/dev/null 2>&1 || [ "$(node -v | cut -d. -f1)" != "v22" ]; then
-  curl -fsSL https://deb.nodesource.com/setup_22.x | bash -
-  apt-get install -y nodejs
+echo ">>> 2. Docker (dépôt officiel docker.com)"
+if ! command -v docker >/dev/null 2>&1; then
+  install -m 0755 -d /etc/apt/keyrings
+  curl -fsSL https://download.docker.com/linux/ubuntu/gpg -o /etc/apt/keyrings/docker.asc
+  chmod a+r /etc/apt/keyrings/docker.asc
+
+  echo "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.asc] \
+https://download.docker.com/linux/ubuntu $(. /etc/os-release && echo "$VERSION_CODENAME") stable" \
+    > /etc/apt/sources.list.d/docker.list
+
+  apt-get update -y
+  apt-get install -y docker-ce docker-ce-cli containerd.io \
+                     docker-buildx-plugin docker-compose-plugin
 fi
 
-# 3. Clone (ou mise à jour) de l'app
-if [ ! -d "$APP_DIR/.git" ]; then
-  sudo -u vagrant git clone https://github.com/dockersamples/todo-list-app "$APP_DIR"
-else
-  sudo -u vagrant git -C "$APP_DIR" pull --ff-only
-fi
+echo ">>> 3. Activation du service Docker"
+systemctl enable --now docker
 
-# 4. Dépendances Node (sqlite3 est utilisé par défaut, pas besoin de MySQL)
-sudo -u vagrant bash -c "cd '$APP_DIR' && npm install --omit=dev"
-
-# 5. Dossier de la base SQLite
-mkdir -p "$DB_DIR"
-chown vagrant:vagrant "$DB_DIR"
-
-# 6. Service systemd
-cat > /etc/systemd/system/todo-app.service <<EOF
-[Unit]
-Description=Todo list app (dockersamples)
-After=network.target
-
-[Service]
-User=vagrant
-WorkingDirectory=$APP_DIR
-Environment=SQLITE_DB_LOCATION=$DB_DIR/todo.db
-ExecStart=/usr/bin/node src/index.js
-Restart=always
-
-[Install]
-WantedBy=multi-user.target
-EOF
-systemctl daemon-reload
-systemctl enable --now todo-app.service
-
-# 7. Redirection 5111 -> 3000 (trafic externe et loopback), persistante au reboot
-iptables -t nat -C PREROUTING -p tcp --dport "$PUBLIC_PORT" -j REDIRECT --to-port "$APP_PORT" 2>/dev/null \
-  || iptables -t nat -A PREROUTING -p tcp --dport "$PUBLIC_PORT" -j REDIRECT --to-port "$APP_PORT"
-iptables -t nat -C OUTPUT -o lo -p tcp --dport "$PUBLIC_PORT" -j REDIRECT --to-port "$APP_PORT" 2>/dev/null \
-  || iptables -t nat -A OUTPUT -o lo -p tcp --dport "$PUBLIC_PORT" -j REDIRECT --to-port "$APP_PORT"
-netfilter-persistent save
+echo ">>> 4. Droits Docker pour l'utilisateur vagrant (sans sudo)"
+usermod -aG docker vagrant
 
 echo "============================================="
-echo " Todo app démarrée"
-echo "  - Depuis le host : http://localhost:$PUBLIC_PORT"
-echo "  - Via IP privée  : http://192.168.56.10:$PUBLIC_PORT"
+echo " VM prête"
+docker --version
+docker compose version
+echo "  - IP privée : 192.168.56.10"
 echo "============================================="
