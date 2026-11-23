@@ -1,0 +1,6 @@
+.vagrant/
+__MACOSX/
+.DS_Store
+todo-list-app/node_modules/
+*.log
+.env
