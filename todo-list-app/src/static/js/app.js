@@ -11,7 +11,7 @@ function App() {
                                 <span className="hero-logo">
                                     <i className="fas fa-stream" />
                                 </span>
-                                <span className="hero-name">TaskFlow</span>
+                                <span className="hero-name">TO-DO-LIST</span>
                             </div>
                             <h1 className="hero-title">Organisez vos tâches, simplement.</h1>
                             <div className="hero-stack">
