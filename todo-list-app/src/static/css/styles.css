@@ -1,39 +1,236 @@
-body {
-    background-color: #f4f4f4;
-    margin-top: 50px;
-    font-family: 'Lato';
+
+/* Thème "TaskFlow" : bandeau sarcelle, cartes blanches */
+:root {
+    --brand: #0f766e;
+    --brand-dark: #115e59;
+    --brand-light: #ccfbf1;
+    --ink: #0f172a;
+    --muted: #64748b;
+    --line: #e2e8f0;
+    --danger: #e11d48;
 }
 
+body {
+    background: #f1f5f9;
+    font-family: 'Lato', system-ui, sans-serif;
+    color: var(--ink);
+}
+
+/* Bandeau d'en-tête */
+.hero {
+    background: linear-gradient(135deg, #0f766e 0%, #0e7490 60%, #1d4ed8 100%);
+    color: white;
+    padding: 34px 0 86px;
+}
+
+.hero-brand {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    font-weight: 700;
+    letter-spacing: 0.5px;
+}
+
+.hero-logo {
+    width: 36px;
+    height: 36px;
+    border-radius: 10px;
+    background: rgba(255, 255, 255, 0.18);
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.hero-name {
+    font-size: 1.15rem;
+}
+
+.hero-title {
+    font-size: 1.9rem;
+    font-weight: 700;
+    margin: 18px 0 14px;
+}
+
+.hero-stack {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+}
+
+.hero-stack span {
+    font-size: 0.78rem;
+    background: rgba(255, 255, 255, 0.15);
+    border-radius: 999px;
+    padding: 4px 10px;
+}
+
+.hero-stack i {
+    margin-right: 4px;
+}
+
+/* Panneau principal, remonté sur le bandeau */
+.panel {
+    background: white;
+    border-radius: 14px;
+    padding: 22px;
+    margin-top: -60px;
+    box-shadow: 0 12px 32px rgba(15, 23, 42, 0.12);
+}
+
+.footer {
+    text-align: center;
+    color: var(--muted);
+    font-size: 0.78rem;
+    margin: 20px 0 40px;
+}
+
+.muted {
+    color: var(--muted);
+}
+
+/* Formulaire d'ajout */
+.add-form .form-control {
+    height: 46px;
+    border-color: var(--line);
+}
+
+.add-form .form-control:focus {
+    border-color: var(--brand);
+    box-shadow: 0 0 0 0.2rem rgba(15, 118, 110, 0.18);
+}
+
+.add-form .btn-primary,
+.add-form .btn-primary:disabled {
+    background: var(--brand);
+    border-color: var(--brand);
+    padding: 0 18px;
+}
+
+.add-form .btn-primary:hover {
+    background: var(--brand-dark);
+    border-color: var(--brand-dark);
+}
+
+/* Barre de progression */
+.progress-block {
+    margin-bottom: 14px;
+}
+
+.progress-label {
+    display: flex;
+    justify-content: space-between;
+    font-size: 0.85rem;
+    color: var(--muted);
+    margin-bottom: 6px;
+}
+
+.progress-label strong {
+    color: var(--brand);
+}
+
+.progress-track {
+    height: 8px;
+    background: var(--line);
+    border-radius: 999px;
+    overflow: hidden;
+}
+
+.progress-fill {
+    height: 100%;
+    background: linear-gradient(90deg, #14b8a6, var(--brand));
+    border-radius: 999px;
+    transition: width 0.3s ease;
+}
+
+/* Filtres */
+.filters {
+    display: flex;
+    gap: 6px;
+    margin-bottom: 14px;
+}
+
+.filter {
+    border: 1px solid var(--line);
+    background: white;
+    color: var(--muted);
+    border-radius: 999px;
+    padding: 4px 12px;
+    font-size: 0.85rem;
+    cursor: pointer;
+}
+
+.filter .count {
+    background: var(--line);
+    border-radius: 999px;
+    padding: 0 7px;
+    margin-left: 4px;
+    font-size: 0.75rem;
+}
+
+.filter.active {
+    background: var(--brand);
+    border-color: var(--brand);
+    color: white;
+}
+
+.filter.active .count {
+    background: rgba(255, 255, 255, 0.25);
+}
+
+/* État vide */
+.empty {
+    text-align: center;
+    color: var(--muted);
+    padding: 26px 0 10px;
+}
+
+.empty i {
+    font-size: 2.2rem;
+    color: #5eead4;
+    margin-bottom: 10px;
+}
+
+/* Tâches */
 .item {
-    background-color: white;
-    padding: 15px;
-    margin-bottom: 15px;
-    border: transparent;
-    border-radius: 5px;
-    box-shadow: 0 0 1em #ccc;
-    transition: all .2s ease-in-out;
+    background: white;
+    padding: 12px 14px;
+    margin-bottom: 8px;
+    border: 1px solid var(--line);
+    border-radius: 10px;
+    transition: all 0.15s ease-in-out;
 }
 
 .item:hover {
-    box-shadow: 0 0 1em #aaa;
+    border-color: #99f6e4;
+    background: #f8fffd;
 }
 
-.item.completed {
+.item.completed .name {
     text-decoration: line-through;
+    color: var(--muted);
 }
 
 .toggles {
-    color: black;
+    color: var(--brand);
+    font-size: 1.1rem;
 }
 
 .name {
-    padding-top: 3px;
+    padding-top: 4px;
 }
 
 .remove {
     padding-left: 0;
 }
 
+.remove .btn-link {
+    color: #94a3b8;
+}
+
+.remove .btn-link:hover {
+    color: var(--danger);
+}
+
 button:focus {
-    border: 1px solid #333;
+    outline: none;
 }
