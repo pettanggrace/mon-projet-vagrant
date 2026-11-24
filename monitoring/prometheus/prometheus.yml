@@ -1,0 +1,21 @@
+# Configuration Prometheus : quelles cibles "scraper" et à quelle fréquence
+global:
+  scrape_interval: 15s
+  evaluation_interval: 15s
+
+scrape_configs:
+  # Prometheus se surveille lui-même
+  - job_name: prometheus
+    static_configs:
+      - targets: ["localhost:9090"]
+
+  # Métriques applicatives exposées par la todo-app sur /metrics
+  - job_name: todo-app
+    metrics_path: /metrics
+    static_configs:
+      - targets: ["app:3000"]
+
+  # Métriques système de la VM (CPU, RAM, disque, réseau)
+  - job_name: node
+    static_configs:
+      - targets: ["node-exporter:9100"]

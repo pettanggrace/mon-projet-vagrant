@@ -1,10 +1,13 @@
+# .github/workflows/ci-cd.yml
 # Pipeline : tests -> build & push de l'image sur GHCR -> déploiement sur la VM (runner auto-hébergé)
 name: CI/CD todo-app
 
 on:
   push:
-    branches: [main]
-  workflow_dispatch:
+    branches: [main]      # toute modification poussée sur main (code, scripts, instructions)
+  workflow_dispatch:      # lancement manuel possible depuis l'onglet Actions
+  # PAS de "pull_request" : dépôt public + runner auto-hébergé = jamais de code
+  # venant d'un fork exécuté sur la VM.
 
 env:
   IMAGE: ghcr.io/${{ github.repository }}/todo-app
@@ -14,6 +17,7 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
+  # ------------------------------------------------------------------ CI
   test:
     name: Tests & vérifications
     runs-on: ubuntu-latest
@@ -40,9 +44,10 @@ jobs:
       - name: Lancer les tests Jest
         working-directory: todo-list-app
         env:
-          SQLITE_DB_LOCATION: /tmp/todos/todo.db
+          SQLITE_DB_LOCATION: /tmp/todos/todo.db   # /etc n'est pas accessible en écriture sur le runner
         run: yarn test --ci
 
+  # ------------------------------------------------------- Build & push
   build-push:
     name: Build & push de l'image (GHCR)
     needs: test
@@ -71,6 +76,7 @@ jobs:
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
+  # ------------------------------------------------------------------ CD
   deploy:
     name: Déploiement sur la VM Vagrant
     needs: build-push
@@ -92,8 +98,11 @@ jobs:
       - name: Télécharger la nouvelle image
         run: docker compose -f compose.prod.yaml pull app
 
-      - name: Redémarrer le conteneur avec la nouvelle image
-        run: docker compose -f compose.prod.yaml up -d --no-build --remove-orphans
+      - name: Redémarrer les conteneurs (app + monitoring)
+        run: |
+          docker compose -f compose.prod.yaml up -d --no-build --remove-orphans
+          # recharge la config Prometheus si prometheus.yml a changé
+          docker compose -f compose.prod.yaml restart prometheus
 
       - name: Vérifier que l'app est healthy
         run: |
@@ -108,6 +117,17 @@ jobs:
             sleep 5
           done
           docker logs --tail 50 todo-app
+          exit 1
+
+      - name: Vérifier Prometheus et Grafana
+        run: |
+          for i in $(seq 1 20); do
+            if curl -fsS http://localhost:9090/-/ready && curl -fsS http://localhost:3001/api/health; then
+              echo; curl -fsS http://localhost:5111/metrics | grep -E '^(http_requests_total|todo_items)' | head
+              exit 0
+            fi
+            sleep 5
+          done
           exit 1
 
       - name: Nettoyer les anciennes images
