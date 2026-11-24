@@ -1,74 +1,115 @@
-name: CI/CD - Todo App
+# Pipeline : tests -> build & push de l'image sur GHCR -> déploiement sur la VM (runner auto-hébergé)
+name: CI/CD todo-app
 
 on:
   push:
-    branches:
-      - main
+    branches: [main]
+  workflow_dispatch:
 
-permissions:
-  contents: read
-  packages: write
+env:
+  IMAGE: ghcr.io/${{ github.repository }}/todo-app
+
+concurrency:
+  group: deploy-todo-vm
+  cancel-in-progress: false
 
 jobs:
   test:
+    name: Tests & vérifications
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: "20"
-          cache: "npm"
-          cache-dependency-path: todo-list-app/package-lock.json
-
-      - name: Install dependencies and run tests
-        working-directory: todo-list-app
+      - name: Vérifier la syntaxe des scripts et de la config
         run: |
-          npm ci
-          npm test --if-present
+          bash -n provision.sh
+          docker compose -f compose.prod.yaml config -q
 
-  build-and-push:
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
+          cache: yarn
+          cache-dependency-path: todo-list-app/yarn.lock
+
+      - name: Installer les dépendances
+        working-directory: todo-list-app
+        run: yarn install --frozen-lockfile
+
+      - name: Lancer les tests Jest
+        working-directory: todo-list-app
+        env:
+          SQLITE_DB_LOCATION: /tmp/todos/todo.db
+        run: yarn test --ci
+
+  build-push:
+    name: Build & push de l'image (GHCR)
     needs: test
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
-      - name: Log in to GitHub Container Registry
-        uses: docker/login-action@v3
+      - uses: docker/setup-buildx-action@v3
+
+      - uses: docker/login-action@v3
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Build and push Docker image
-        uses: docker/build-push-action@v6
+      - uses: docker/build-push-action@v6
         with:
           context: ./todo-list-app
           push: true
           tags: |
-            ghcr.io/${{ github.repository }}/todo-app:latest
-            ghcr.io/${{ github.repository }}/todo-app:${{ github.sha }}
+            ${{ env.IMAGE }}:latest
+            ${{ env.IMAGE }}:${{ github.sha }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
 
   deploy:
-    needs: build-and-push
-    runs-on: self-hosted
+    name: Déploiement sur la VM Vagrant
+    needs: build-push
+    runs-on: [self-hosted, linux, todo-vm]
+    permissions:
+      contents: read
+      packages: read
+    env:
+      TODO_IMAGE: ghcr.io/${{ github.repository }}/todo-app:${{ github.sha }}
     steps:
-      - name: Checkout code on runner
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
-      - name: Log in to GHCR on VM
-        uses: docker/login-action@v3
+      - uses: docker/login-action@v3
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Pull image and deploy with compose.prod.yaml
+      - name: Télécharger la nouvelle image
+        run: docker compose -f compose.prod.yaml pull app
+
+      - name: Redémarrer le conteneur avec la nouvelle image
+        run: docker compose -f compose.prod.yaml up -d --no-build --remove-orphans
+
+      - name: Vérifier que l'app est healthy
         run: |
-          cd /vagrant
-          docker compose -f compose.prod.yaml pull
-          docker compose -f compose.prod.yaml up -d --remove-orphans
-          docker image prune -f
+          for i in $(seq 1 20); do
+            status=$(docker inspect -f '{{.State.Health.Status}}' todo-app)
+            echo "Tentative $i : $status"
+            if [ "$status" = "healthy" ]; then
+              curl -fsS http://localhost:5111/items && echo
+              docker ps --filter name=todo-app
+              exit 0
+            fi
+            sleep 5
+          done
+          docker logs --tail 50 todo-app
+          exit 1
+
+      - name: Nettoyer les anciennes images
+        if: always()
+        run: docker image prune -f
